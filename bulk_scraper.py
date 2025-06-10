@@ -118,37 +118,37 @@ class FastBulkScraper:
         # Why: We need to remember which sitemap we're working with for all operations
         # How: We assign the input parameter to self.sitemap_source to keep it available
         self.sitemap_source = sitemap_url
-        
+
         # Set the delay time between requests to 0.8 seconds
         # What: This sets how long to wait between each product scraping request
         # Why: We need delays to be respectful to the website and avoid overwhelming their servers
         # How: We store 0.8 seconds as the delay time, which is fast but still polite
         self.delay = 0.8  # Fast scraping - 0.8 seconds between requests
-        
+
         # Initialize empty list to store product URLs we extract from the sitemap
         # What: This creates a container to hold all the product URLs we find
         # Why: We need somewhere to store the URLs before we scrape them individually
         # How: We start with an empty list that we'll fill with URLs from the sitemap
         self.product_urls = []
-        
+
         # Initialize empty list to store all the scraped product data
         # What: This creates a container to hold all the product information we collect
         # Why: We need somewhere to store the data from each product page we scrape
         # How: We start with an empty list that we'll fill with product data dictionaries
         self.scraped_data = []
-        
+
         # Initialize empty list to track URLs that fail during scraping
         # What: This creates a container to store information about failed scraping attempts
         # Why: We need to track which products couldn't be scraped and why they failed
         # How: We start with an empty list that we'll fill with error information if needed
         self.failed_urls = []
-        
+
         # Initialize empty list to track temporary files we create during scraping
         # What: This creates a container to remember which individual files we create temporarily
         # Why: We need to delete these temporary files after we combine them into final files
         # How: We start with an empty list that we'll fill with file paths for later cleanup
         self.temp_files = []  # Track temporary individual files for cleanup
-        
+
         # Initialize dictionary to store statistics about our scraping operation
         # What: This creates a container to track various numbers about our scraping progress
         # Why: We need to know how many products we processed, how many succeeded, failed, and timing
@@ -163,6 +163,7 @@ class FastBulkScraper:
     # What: This downloads the sitemap and extracts only the product page URLs
     # Why: We need a list of product URLs before we can scrape individual products
     # How: We use SitemapExtractor to download and parse the sitemap, then filter for product URLs
+
     def extract_product_urls(self, url_pattern=None, max_urls=None):
         """
         Extract only product URLs from sitemap
@@ -191,13 +192,13 @@ class FastBulkScraper:
             # Why: We need a specialized tool to download and parse XML sitemap files
             # How: We pass our sitemap URL to create a new SitemapExtractor object
             extractor = SitemapExtractor(self.sitemap_source)
-            
+
             # Download and parse the sitemap content
             # What: This downloads the XML sitemap file and processes it into usable data
             # Why: We need to get the sitemap content before we can extract URLs
             # How: We call the load_sitemap() method which handles download and parsing
             extractor.load_sitemap()
-            
+
             # Extract product URLs from the loaded sitemap, optionally with pattern filtering
             # What: This gets all product URLs from the sitemap, possibly filtered by pattern
             # Why: We only want product URLs, not other pages like categories or info pages
@@ -563,7 +564,7 @@ def fast_bulk_scrape(sitemap_url, max_products=None, output_dir="scraped_product
         # Why: We need error information for troubleshooting
         # How: We use logger.error() to record the exception details
         logger.error(f"Fast bulk scraping failed: {e}")
-        
+
         # Re-raise the exception so the caller knows something failed
         # What: This passes the error up to whatever code called this function
         # Why: The calling code needs to know that scraping failed

@@ -77,19 +77,19 @@ class SitemapExtractor:
         # Why: We need to remember which sitemap file we're working with
         # How: We assign the input parameter to self.sitemap_url to keep it available
         self.sitemap_url = sitemap_url
-        
+
         # Initialize an empty variable to store the downloaded sitemap content
         # What: This creates a placeholder for the XML content we'll download from the URL
         # Why: We need somewhere to store the raw sitemap data after downloading it
         # How: We set it to None initially, will be filled when we download the sitemap
         self.sitemap_content = None
-        
+
         # Initialize empty list to store extracted product URLs with their details
         # What: This creates a container for product URLs and their associated information
         # Why: We need to store the URLs we extract along with metadata like product names
         # How: We start with an empty list that we'll fill with dictionaries containing URL data
         self.product_urls = []
-        
+
         # Initialize empty list to store all URLs found in the sitemap
         # What: This creates a container for every URL found in the sitemap file
         # Why: We need to store all URLs first, then filter for just the product ones
@@ -98,6 +98,7 @@ class SitemapExtractor:
     # What: This downloads the XML sitemap file from the web and processes it
     # Why: We need to get the sitemap content before we can extract URLs from it
     # How: We use requests to download the XML, then determine how to process it
+
     def load_sitemap(self):
         """Load sitemap content from URL"""
         # Use try-except to handle any errors that might occur during download
@@ -125,7 +126,7 @@ class SitemapExtractor:
             # How: We use requests.get() with headers and a 30-second timeout
             response = requests.get(
                 self.sitemap_url, headers=headers, timeout=30)
-            
+
             # Check if the download was successful (no 404 errors, etc.)
             # What: This verifies that the web server returned the content successfully
             # Why: If there was an error (like 404 not found), we need to know and stop
@@ -137,7 +138,7 @@ class SitemapExtractor:
             # Why: We need to keep the XML data available for parsing and URL extraction
             # How: We assign response.text to self.sitemap_content for later use
             self.sitemap_content = response.text
-            
+
             # Log that the download was successful
             # What: This records that we successfully downloaded the sitemap content
             # Why: We want to track our progress and confirm the download worked
@@ -155,7 +156,7 @@ class SitemapExtractor:
                 # How: We use logger.info() to write an informational message
                 logger.info(
                     "Detected sitemap index file - contains links to other sitemaps")
-                
+
                 # Process the sitemap index to find product sitemaps
                 # What: This extracts the URLs of individual sitemap files from the index
                 # Why: We need to get the actual product sitemaps from the index file
@@ -166,7 +167,8 @@ class SitemapExtractor:
                 # What: This processes the XML to extract individual URLs
                 # Why: This sitemap contains actual URLs, not links to other sitemaps
                 # How: We call a method that parses the XML and extracts all URLs
-                self._parse_sitemap()        # If any error occurs during the sitemap loading process, handle it
+                # If any error occurs during the sitemap loading process, handle it
+                self._parse_sitemap()
         # What: This catches any errors that happened during download or processing
         # Why: We need to log errors and re-raise them so the calling code knows something failed
         # How: We catch the exception, log what went wrong, then raise it again
@@ -176,7 +178,7 @@ class SitemapExtractor:
             # Why: We need to know what failed so we can fix problems
             # How: We use logger.error() to write an error message with the exception details
             logger.error(f"Error loading sitemap: {e}")
-            
+
             # Re-raise the exception so the calling code knows there was a problem
             # What: This passes the error up to whatever code called this method
             # Why: The calling code needs to know that loading failed so it can handle it
@@ -199,7 +201,7 @@ class SitemapExtractor:
             # Why: We need to examine the XML tags to determine the file type
             # How: ET.fromstring() parses the XML and returns the root element
             root = ET.fromstring(self.sitemap_content)
-            
+
             # Check if the root tag indicates this is a sitemap index
             # What: This examines the XML tag names to identify the file type
             # Why: Index files have different root tags than regular sitemaps

@@ -101,27 +101,29 @@ class ProductScraper:
         # Why: We need to remember what we're scraping whether it's a web URL or local file
         # How: We assign the input parameter to self.source to keep it available to all methods
         self.source = source
-        
+
         # Check if the source is a URL or a file path
         # What: This determines whether we're working with a web URL or local HTML file
         # Why: We need to handle URLs and files differently when loading and processing content
         # How: We call a helper method that analyzes the source string to identify its type
         self.is_url = self._is_url(source)
-        
+
         # Initialize an empty variable to store parsed HTML content
         # What: This creates a placeholder for the BeautifulSoup object that will hold our HTML
         # Why: BeautifulSoup will parse the HTML and we need somewhere to store the parsed content
         # How: We set it to None initially, will be filled when we load and parse the HTML
         self.soup = None
-        
+
         # Initialize an empty dictionary to store all extracted product information
         # What: This creates a container for all the product data we'll collect during scraping
         # Why: We need a structured way to organize prices, names, images, sizes, and other data
         # How: We start with an empty dictionary that we'll fill with organized product data
-        self.product_data = {}    # Helper method to check if a source string is a URL or file path
+        # Helper method to check if a source string is a URL or file path
+        self.product_data = {}
     # What: This analyzes a string to determine if it's a web URL or local file path
     # Why: We need to handle URLs and files differently when loading content
     # How: We use urlparse to check if the string has URL components like scheme and domain
+
     def _is_url(self, source):
         """Check if the source is a URL"""
         # Use try-except to handle any errors during URL parsing
@@ -134,7 +136,7 @@ class ProductScraper:
             # Why: We need to check if all required URL parts are present
             # How: urlparse() returns an object with scheme, netloc, path, and other URL parts
             result = urlparse(source)
-            
+
             # Check if both scheme (http/https) and netloc (domain) are present
             # What: This verifies that the string has the essential parts of a valid URL
             # Why: A valid URL must have both a protocol (http/https) and a domain name

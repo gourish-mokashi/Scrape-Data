@@ -43,7 +43,7 @@ from bulk_scraper import fast_bulk_scrape
 # Why: We want to collect data from multiple products efficiently
 # How: We call fast_bulk_scrape() with the sitemap URL and set a limit of 10 products
 report = fast_bulk_scrape(
-    "https://thehouseofrare.com/sitemap_products_2.xml?from=6811712421959&to=7085629210695", 
+    "https://thehouseofrare.com/sitemap_products_2.xml?from=6811712421959&to=7085629210695",
     max_products=10
 )
 
