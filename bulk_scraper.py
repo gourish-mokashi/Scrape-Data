@@ -63,10 +63,10 @@ import logging
 # How: We'll create a SitemapExtractor object to download and parse sitemap files
 from sitemap_extractor import SitemapExtractor
 
-# Importing ProductScraper from our product_scraper_automated file
-# What: This brings in our custom tool for scraping individual product pages
-# Why: We need to extract detailed information from each product page
-# How: We'll create ProductScraper objects for each product URL we want to scrape
+# Importing ProductScraper from our flat structure product scraper file
+# What: This brings in our custom tool for scraping individual product pages with flat JSON output
+# Why: We need to extract detailed information from each product page in the new flat schema format
+# How: We'll create ProductScraper objects for each product URL using the flat structure version
 from product_scraper_automated import ProductScraper
 
 # Setting up the logging system
@@ -304,64 +304,31 @@ class FastBulkScraper:
                     'index': i
                 })
                 self.stats['failed_scrapes'] += 1
-                # Continue with next URL after shorter delay
-                print(f"❌ Failed: {e}")
+                # Continue with next URL after shorter delay                print(f"❌ Failed: {e}")
                 time.sleep(self.delay / 2)
 
         self.stats['end_time'] = datetime.now()
         return self._generate_final_files(output_path)
 
-    def _transform_data_schema(self, raw_data, url):
+    def _transform_data_schema(self, flat_data, url):
         """
-        Transform raw scraped data to match the required JSON schema
+        The flat structure ProductScraper already returns data in the correct format
+
+        What: Since we're using the flat structure version, data is already in the desired schema
+        Why: The new ProductScraper returns flat JSON matching the required schema exactly
+        How: We just return the data as-is since no transformation is needed
 
         Args:
-            raw_data (dict): Raw data from ProductScraper
-            url (str): Product URL
+            flat_data (dict): Already flat data from ProductScraper
+            url (str): Product URL (already included in flat_data)
 
         Returns:
-            dict: Transformed data matching required schema
+            dict: Flat data structure (no transformation needed)
         """
-        basic_info = raw_data.get('basic_information', {})
-        pricing_info = raw_data.get('pricing_information', {})
-        specs = raw_data.get('product_specifications', {})
-        size_data = raw_data.get('size_and_availability', {})
-        images = raw_data.get('product_images', {})
-
-        # Transform size availability to the required format
-        size_availability = {}
-        if size_data.get('size_availability'):
-            size_availability = size_data['size_availability']
-
-        transformed_data = {
-            "basic_information": {
-                "page_title": basic_info.get('page_title', ''),
-                "main_title": basic_info.get('main_title', ''),
-                "url": url
-            },
-            "pricing_information": {
-                "original_price": pricing_info.get('original_price', 0),
-                "sale_price": pricing_info.get('sale_price', 0),
-                "discount_percentage": pricing_info.get('discount_percentage', ''),
-                "savings_amount": pricing_info.get('savings_amount', 0)
-            },
-            "product_specifications": {
-                "fabric": specs.get('fabric', ''),
-                "fit": specs.get('fit', ''),
-                "closure": specs.get('closure', ''),
-                "collar": specs.get('collar', ''),
-                "sleeve": specs.get('sleeve', ''),
-                "pattern": specs.get('pattern', ''),
-                "occasion": specs.get('occasion', '')
-            },
-            "size_availability": size_availability,
-            "product_images": {
-                "product_images": images.get('product_images', []),
-                "main_image": images.get('main_image', '')
-            }
-        }
-
-        return transformed_data
+        # What: Return the data as-is since it's already in the correct flat format
+        # Why: The flat structure ProductScraper outputs exactly what we need
+        # How: Simply return the flat_data without any transformation
+        return flat_data
 
     def _generate_final_files(self, output_path):
         """Generate final CSV and JSON files, then cleanup individual files"""
@@ -423,19 +390,19 @@ class FastBulkScraper:
         with open(report_file, 'w', encoding='utf-8') as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
 
-        # Print summary
-        self._print_final_summary(report)
+        # Print summary        self._print_final_summary(report)
 
         return report
 
     def _create_comprehensive_csv(self, csv_file):
-        """Create comprehensive CSV with all product data"""
+        """Create comprehensive CSV with all product data from flat structure"""
         with open(csv_file, 'w', newline='', encoding='utf-8') as f:
-            # Define comprehensive fieldnames
+            # Define comprehensive fieldnames for flat structure
             fieldnames = [
-                'product_name', 'url', 'original_price', 'sale_price',
+                'page_title', 'main_title', 'url', 'original_price', 'sale_price',
                 'discount_percentage', 'savings_amount', 'fabric', 'fit',
                 'closure', 'collar', 'sleeve', 'pattern', 'occasion',
+                'XS-36', 'S-38', 'M-40', 'L-42', 'XL-44', 'XXL-46', '3XL-48',
                 'total_images', 'main_image'
             ]
 
@@ -443,27 +410,31 @@ class FastBulkScraper:
             writer.writeheader()
 
             for product_data in self.scraped_data:
-                basic = product_data.get('basic_information', {})
-                pricing = product_data.get('pricing_information', {})
-                specs = product_data.get('product_specifications', {})
-                images = product_data.get('product_images', {})
-
+                # Since data is already flat, we can access fields directly
                 row = {
-                    'product_name': basic.get('main_title', ''),
-                    'url': basic.get('url', ''),
-                    'original_price': pricing.get('original_price', ''),
-                    'sale_price': pricing.get('sale_price', ''),
-                    'discount_percentage': pricing.get('discount_percentage', ''),
-                    'savings_amount': pricing.get('savings_amount', ''),
-                    'fabric': specs.get('fabric', ''),
-                    'fit': specs.get('fit', ''),
-                    'closure': specs.get('closure', ''),
-                    'collar': specs.get('collar', ''),
-                    'sleeve': specs.get('sleeve', ''),
-                    'pattern': specs.get('pattern', ''),
-                    'occasion': specs.get('occasion', ''),
-                    'total_images': len(images.get('product_images', [])),
-                    'main_image': images.get('main_image', '')
+                    'page_title': product_data.get('page_title', ''),
+                    'main_title': product_data.get('main_title', ''),
+                    'url': product_data.get('url', ''),
+                    'original_price': product_data.get('original_price', ''),
+                    'sale_price': product_data.get('sale_price', ''),
+                    'discount_percentage': product_data.get('discount_percentage', ''),
+                    'savings_amount': product_data.get('savings_amount', ''),
+                    'fabric': product_data.get('fabric', ''),
+                    'fit': product_data.get('fit', ''),
+                    'closure': product_data.get('closure', ''),
+                    'collar': product_data.get('collar', ''),
+                    'sleeve': product_data.get('sleeve', ''),
+                    'pattern': product_data.get('pattern', ''),
+                    'occasion': product_data.get('occasion', ''),
+                    'XS-36': product_data.get('XS-36', False),
+                    'S-38': product_data.get('S-38', False),
+                    'M-40': product_data.get('M-40', False),
+                    'L-42': product_data.get('L-42', False),
+                    'XL-44': product_data.get('XL-44', False),
+                    'XXL-46': product_data.get('XXL-46', False),
+                    '3XL-48': product_data.get('3XL-48', False),
+                    'total_images': len(product_data.get('product_images', [])),
+                    'main_image': product_data.get('main_image', '')
                 }
                 writer.writerow(row)
 

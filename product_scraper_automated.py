@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """
-E-commerce Product Data Scraper - URL Automation Version
-=======================================================
-This script extracts product information from thehouseofrare.com webpages.
-It can work with both live URLs and local HTML files, organizing the data 
-into a structured JSON format.
+E-commerce Product Data Scraper - Flat JSON Schema Version
+=========================================================
+This script extracts product information from thehouseofrare.com webpages
+and outputs it in a flat JSON structure for easier consumption.
 
 Features:
 - Direct URL scraping from thehouseofrare.com
 - Dynamic content loading with wait strategies
 - Local HTML file processing
-- Comprehensive product data extraction
-- JSON output generation
+- Flat JSON output structure
+- Individual size availability fields
 
 Author: GitHub Copilot
 """
@@ -118,12 +117,12 @@ class ProductScraper:
         # What: This creates a container for all the product data we'll collect during scraping
         # Why: We need a structured way to organize prices, names, images, sizes, and other data
         # How: We start with an empty dictionary that we'll fill with organized product data
-        # Helper method to check if a source string is a URL or file path
         self.product_data = {}
+
+    # Helper method to check if a source string is a URL or file path
     # What: This analyzes a string to determine if it's a web URL or local file path
     # Why: We need to handle URLs and files differently when loading content
     # How: We use urlparse to check if the string has URL components like scheme and domain
-
     def _is_url(self, source):
         """Check if the source is a URL"""
         # Use try-except to handle any errors during URL parsing
@@ -158,48 +157,11 @@ class ProductScraper:
                 f"URL must be from thehouseofrare.com domain. Got: {parsed_url.netloc}")
         return True
 
-    def _wait_for_dynamic_content(self, soup, max_retries=3):
-        """
-        Wait for dynamic content to load by checking for key elements
-
-        Args:
-            soup: BeautifulSoup object
-            max_retries: Maximum number of retries
-
-        Returns:
-            bool: True if content appears to be loaded
-        """
-        retry_count = 0
-        while retry_count < max_retries:
-            # Check for key product elements that indicate page is fully loaded
-            key_elements = [
-                soup.find('input', {'name': 'Size'}),
-                soup.find('input', {'name': 'fabric'}),
-                soup.find('div', class_='compare-price-wrapper'),
-                soup.find('script', string=lambda x: x and 'moeApp.product' in x)
-            ]
-
-            loaded_elements = sum(1 for element in key_elements if element)
-
-            if loaded_elements >= 3:  # At least 3 out of 4 key elements found
-                logger.info(
-                    f"Dynamic content loaded successfully ({loaded_elements}/4 elements found)")
-                return True
-
-            logger.info(
-                f"Waiting for dynamic content... ({loaded_elements}/4 elements loaded)")
-            time.sleep(1)  # Wait 1 second before retry
-            retry_count += 1
-
-        logger.warning("Dynamic content may not be fully loaded")
-        return False
-
     def load_html(self):
         """Load and parse HTML from file or URL with dynamic content handling"""
         try:
             if self.is_url:
                 self._validate_url(self.source)
-
                 logger.info(f"Fetching content from URL: {self.source}")
 
                 # Set up headers to mimic a real browser
@@ -212,38 +174,21 @@ class ProductScraper:
                     'Upgrade-Insecure-Requests': '1',
                 }
 
-                # Make request with retries for dynamic content
-                max_attempts = 3
-                for attempt in range(max_attempts):
-                    try:
-                        response = requests.get(
-                            self.source, headers=headers, timeout=30)
-                        response.raise_for_status()
-
-                        html_content = response.text
-                        logger.info(
-                            f"Successfully fetched content from URL: {self.source}")
-                        break
-
-                    except requests.exceptions.RequestException as e:
-                        if attempt == max_attempts - 1:
-                            raise
-                        logger.warning(
-                            f"Attempt {attempt + 1} failed: {e}. Retrying...")
-                        time.sleep(2)
+                response = requests.get(
+                    self.source, headers=headers, timeout=30)
+                response.raise_for_status()
+                html_content = response.text
+                logger.info(
+                    f"Successfully fetched content from URL: {self.source}")
 
             else:
-                # Load from file (existing functionality)
+                # Load from file
                 file_path = Path(self.source)
                 with open(file_path, 'r', encoding='utf-8') as file:
                     html_content = file.read()
                 logger.info(f"Successfully loaded HTML file: {file_path}")
 
             self.soup = BeautifulSoup(html_content, 'html.parser')
-
-            # Wait for dynamic content if loading from URL
-            if self.is_url:
-                self._wait_for_dynamic_content(self.soup)
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching URL: {e}")
@@ -271,39 +216,12 @@ class ProductScraper:
                     if title_match:
                         basic_info['product_title'] = title_match.group(1)
 
-                    # Extract product ID
-                    id_match = re.search(r'"id":\s*"(\d+)"', script.string)
-                    if id_match:
-                        basic_info['product_id'] = id_match.group(1)
-
-                    # Extract handle
-                    handle_match = re.search(
-                        r'"handle":\s*"([^"]+)"', script.string)
-                    if handle_match:
-                        basic_info['product_handle'] = handle_match.group(1)
-
-                    # Extract vendor
-                    vendor_match = re.search(
-                        r'"vendor":\s*"([^"]+)"', script.string)
-                    if vendor_match:
-                        basic_info['brand'] = vendor_match.group(1)
-
-                    # Extract product type
-                    type_match = re.search(
-                        r'"product_type":\s*"([^"]+)"', script.string)
-                    if type_match:
-                        basic_info['product_type'] = type_match.group(1)
-
             # Extract main product name from h1 and h2 tags
             main_title = self.soup.find('h1', class_='main-title')
             if main_title:
                 title_span = main_title.find('span')
                 if title_span:
                     basic_info['main_title'] = title_span.get_text().strip()
-
-            sub_title = self.soup.find('h2', class_='sub-title')
-            if sub_title:
-                basic_info['sub_title'] = sub_title.get_text().strip()
 
             logger.info("Successfully extracted basic product information")
 
@@ -330,7 +248,6 @@ class ProductScraper:
                     if price_match:
                         pricing_info['original_price'] = int(
                             price_match.group(1).replace(',', ''))
-                        pricing_info['original_price_formatted'] = price_text
 
                 # Sale price
                 regular_price = price_wrapper.find(
@@ -341,7 +258,6 @@ class ProductScraper:
                     if price_match:
                         pricing_info['sale_price'] = int(
                             price_match.group(1).replace(',', ''))
-                        pricing_info['sale_price_formatted'] = price_text
 
                 # Discount percentage
                 discount_perc = price_wrapper.find('span', class_='perc_price')
@@ -355,9 +271,6 @@ class ProductScraper:
                     pricing_info['sale_price']
                 pricing_info['savings_amount'] = savings
 
-            # Extract currency
-            pricing_info['currency'] = 'INR'
-
             logger.info("Successfully extracted pricing information")
 
         except Exception as e:
@@ -370,7 +283,7 @@ class ProductScraper:
         specifications = {}
 
         try:
-            # Extract from specification input fields (text inputs, not hidden)
+            # Extract from specification input fields
             spec_names = ['fabric', 'fit', 'closure',
                           'collar', 'sleeve', 'pattern', 'occasion']
 
@@ -380,37 +293,6 @@ class ProductScraper:
                     value = spec_input.get('value', '').strip()
                     if value:
                         specifications[spec_name] = value
-                    elif spec_name == 'pattern':
-                        # Default for empty pattern
-                        specifications[spec_name] = 'SOLID'
-
-            # Extract from product description
-            description_content = self.soup.find(
-                'div', class_='content-wrapper')
-            if description_content:
-                description_text = description_content.get_text()
-
-                # Extract specific details from description
-                if 'Cotton' in description_text:
-                    specifications['material_type'] = 'Cotton'
-                if 'Regular collar' in description_text:
-                    specifications['collar_type'] = 'Regular collar'
-                if 'Short sleeve' in description_text or 'Half Sleeve' in description_text:
-                    specifications['sleeve_length'] = 'Half Sleeve'
-                if 'Button fastening' in description_text:
-                    specifications['closure_type'] = 'Button'
-                if 'Tailored Fit' in description_text:
-                    specifications['fit_type'] = 'Tailored Fit'
-
-            # Extract color from variants
-            color_options = self.soup.find_all('div', class_='color-title')
-            colors = []
-            for color in color_options:
-                color_text = color.get_text().strip()
-                if color_text:
-                    colors.append(color_text)
-            if colors:
-                specifications['available_colors'] = colors
 
             logger.info("Successfully extracted product specifications")
 
@@ -424,7 +306,6 @@ class ProductScraper:
         size_info = {}
 
         try:
-            sizes = []
             size_availability = {}
 
             # Extract from variant radios
@@ -438,17 +319,9 @@ class ProductScraper:
                     if parent and 'inactive-option' in parent.get('class', []):
                         is_available = False
 
-                    sizes.append(size_value)
                     size_availability[size_value] = is_available
 
-            if sizes:
-                size_info['available_sizes'] = sizes
-                size_info['size_availability'] = size_availability
-                size_info['in_stock_sizes'] = [size for size,
-                                               available in size_availability.items() if available]
-                size_info['out_of_stock_sizes'] = [
-                    size for size, available in size_availability.items() if not available]
-
+            size_info['size_availability'] = size_availability
             logger.info("Successfully extracted size information")
 
         except Exception as e:
@@ -472,14 +345,12 @@ class ProductScraper:
                     images_match = re.search(
                         images_pattern, script.string, re.DOTALL)
                     if images_match:
-                        # Clean and extract URLs - handle multiple image formats
+                        # Clean and extract URLs
                         image_urls_raw = images_match.group(1)
                         urls = re.findall(
                             r'"([^"]*\.(jpg|jpeg|png|webp)[^"]*)"', image_urls_raw, re.IGNORECASE)
                         for url_match in urls:
-                            # Get the full URL from the tuple
                             url = url_match[0]
-                            # Remove escaped slashes from JSON
                             clean_url = url.replace('\\/', '/')
 
                             if clean_url.startswith('//'):
@@ -488,22 +359,7 @@ class ProductScraper:
                                 image_urls.append(
                                     'https://thehouseofrare.com' + clean_url)
                             else:
-                                # Method 2: Extract from img tags with product-related alt text
                                 image_urls.append(clean_url)
-            if not image_urls:
-                product_images = self.soup.find_all(
-                    'img', alt=re.compile(r'.*', re.IGNORECASE))
-                for img in product_images:
-                    src = img.get('src') or img.get('data-src')
-                    if src and ('product' in src.lower() or 'cdn.shopify' in src):
-                        # Clean escaped slashes
-                        clean_src = src.replace('\\/', '/')
-
-                        if clean_src.startswith('//'):
-                            clean_src = 'https:' + clean_src
-                        elif clean_src.startswith('/'):
-                            clean_src = 'https://thehouseofrare.com' + clean_src
-                        image_urls.append(clean_src)
 
             # Remove duplicates while preserving order
             unique_images = []
@@ -516,7 +372,6 @@ class ProductScraper:
             if unique_images:
                 images['product_images'] = unique_images
                 images['main_image'] = unique_images[0] if unique_images else None
-                images['total_images'] = len(unique_images)
 
             logger.info(
                 f"Successfully extracted {len(unique_images)} product images")
@@ -526,116 +381,131 @@ class ProductScraper:
 
         return images
 
-    def extract_ratings_reviews(self):
-        """Extract ratings and review information"""
-        ratings_info = {}
-
-        try:
-            # Extract from JSON-LD structured data (most reliable)
-            scripts = self.soup.find_all('script', type='application/ld+json')
-            for script in scripts:
-                if script.string:
-                    try:
-                        data = json.loads(script.string)
-                        if isinstance(data, dict) and data.get('@type') == 'Product':
-                            aggregate_rating = data.get('aggregateRating', {})
-                            if aggregate_rating:
-                                ratings_info['average_rating'] = float(
-                                    aggregate_rating.get('ratingValue', 0))
-                                ratings_info['total_reviews'] = int(
-                                    aggregate_rating.get('reviewCount', 0))
-                                ratings_info['rating_scale'] = '5.0'
-                    except json.JSONDecodeError:
-                        continue
-
-            # Fallback: Extract from script data
-            if not ratings_info:
-                scripts = self.soup.find_all('script')
-                for script in scripts:
-                    if script.string and 'window.yotpo' in script.string:
-                        # Extract average rating
-                        rating_pattern = r'"average_score":\s*(\d+\.?\d*)'
-                        rating_match = re.search(rating_pattern, script.string)
-                        if rating_match:
-                            ratings_info['average_rating'] = float(
-                                rating_match.group(1))
-
-                        # Extract total reviews
-                        reviews_pattern = r'"reviews_count":\s*(\d+)'
-                        reviews_match = re.search(
-                            reviews_pattern, script.string)
-                        if reviews_match:
-                            ratings_info['total_reviews'] = int(
-                                reviews_match.group(1))
-
-            logger.info("Successfully extracted ratings information")
-
-        except Exception as e:
-            logger.error(f"Error extracting ratings: {e}")
-
-        return ratings_info
-
-    def _filter_unwanted_fields(self, data):
+    def create_flat_structure(self, nested_data):
         """
-        Remove unwanted fields from the product data
+        Create a flat JSON structure from the nested product data
+
+        What: This reorganizes nested product data into a single flat dictionary
+        Why: The output should be a simple, flat JSON structure without nested categories
+        How: We extract specific fields from each category and place them at the root level
 
         Args:
-            data (dict): Product data dictionary
+            nested_data (dict): Nested product data dictionary
 
         Returns:
-            dict: Filtered product data without unwanted fields
+            dict: Flat product data structure matching the desired schema
         """
-        # Fields to exclude from JSON output
-        unwanted_fields = {
-            'original_price_formatted',
-            'sale_price_formatted',
-            'currency',
-            'current_color',
-            'available_sizes',
-            'in_stock_sizes',
-            'out_of_stock_sizes',
-            'total_images',
-            'rating_scale'
+        # What: Create an empty dictionary to store our flat structure
+        # Why: We need a clean container to build our simplified output format
+        # How: Initialize an empty dict that we'll populate with flattened data
+        flat_data = {}
+
+        # What: Extract basic information fields to root level
+        # Why: Page title, product title, and URL should be at the top level
+        # How: Get data from basic_information category and place it directly in flat_data
+        basic_info = nested_data.get('basic_information', {})
+        flat_data['page_title'] = basic_info.get('page_title', '')
+        flat_data['main_title'] = basic_info.get('main_title', '')
+
+        # What: Add the product URL to the output
+        # Why: The schema requires the URL field for reference
+        # How: Use the source URL if it's a URL, otherwise leave empty
+        flat_data['url'] = self.source if self.is_url else ''
+
+        # What: Extract pricing information to root level
+        # Why: Price data should be easily accessible without nested structure
+        # How: Get pricing data and place original_price, sale_price, etc. at root level
+        pricing_info = nested_data.get('pricing_information', {})
+        flat_data['original_price'] = pricing_info.get('original_price', 0)
+        flat_data['sale_price'] = pricing_info.get('sale_price', 0)
+        flat_data['discount_percentage'] = pricing_info.get(
+            'discount_percentage', '')
+        flat_data['savings_amount'] = pricing_info.get('savings_amount', 0)
+
+        # What: Extract product specifications to root level
+        # Why: Fabric, fit, collar, etc. should be directly accessible
+        # How: Get each specification field and place it at the root level
+        specs = nested_data.get('product_specifications', {})
+        flat_data['fabric'] = specs.get('fabric', '')
+        flat_data['fit'] = specs.get('fit', '')
+        flat_data['closure'] = specs.get('closure', '')
+        flat_data['collar'] = specs.get('collar', '')
+        flat_data['sleeve'] = specs.get('sleeve', '')
+        flat_data['pattern'] = specs.get('pattern', '')
+        flat_data['occasion'] = specs.get('occasion', '')
+
+        # What: Extract size availability as individual size fields
+        # Why: Each size should be a separate field showing true/false availability
+        # How: Convert size_availability dict into individual size-availability fields
+        size_info = nested_data.get('size_and_availability', {})
+        size_availability = size_info.get('size_availability', {})
+
+        # What: Define standard size format mapping
+        # Why: Convert from simple sizes (S, M, L) to size-measurement format (S-38, M-40)
+        # How: Create a mapping dictionary for size codes to measurements
+        size_mapping = {
+            'XS': 'XS-36',
+            'S': 'S-38',
+            'M': 'M-40',
+            'L': 'L-42',
+            'XL': 'XL-44',
+            'XXL': 'XXL-46',
+            '3XL': '3XL-48'
         }
 
-        filtered_data = {}
+        # What: Add size availability fields for each standard size
+        # Why: Each size needs its own boolean field in the flat structure
+        # How: Loop through size mapping and set true/false based on availability
+        for size_code, size_label in size_mapping.items():
+            # Check if this size is available in the scraped data
+            is_available = size_availability.get(size_code, False)
+            flat_data[size_label] = is_available
 
-        for category_key, category_data in data.items():
-            if isinstance(category_data, dict):
-                # Filter out unwanted fields from this category
-                filtered_category = {
-                    key: value for key, value in category_data.items()
-                    if key not in unwanted_fields
-                }
-                filtered_data[category_key] = filtered_category
-            else:
-                # Keep non-dict values as is
-                filtered_data[category_key] = category_data
+        # What: Extract image information to root level
+        # Why: Product images should be easily accessible as arrays
+        # How: Get the product_images list and main_image from images category
+        images_info = nested_data.get('product_images', {})
+        flat_data['product_images'] = images_info.get('product_images', [])
+        flat_data['main_image'] = images_info.get('main_image', '')
 
+        # What: Log the successful creation of flat structure
+        # Why: We want to track that the data transformation completed successfully
+        # How: Use logger to record that we've created the flat JSON structure
         logger.info(
-            f"Filtered out unwanted fields: {', '.join(unwanted_fields)}")
-        return filtered_data
+            "Successfully created flat JSON structure matching desired schema")
+        return flat_data
 
     def scrape_all_data(self):
-        """Scrape all product data and organize into categories"""
+        """Scrape all product data and organize into flat structure"""
+        # What: Log that we're starting the data extraction process
+        # Why: We want to track when the scraping process begins
+        # How: Use logger to record the start of product data extraction
         logger.info("Starting product data extraction...")
 
-        # Load HTML content
+        # What: Load and parse the HTML content from URL or file
+        # Why: We need the HTML content before we can extract any data
+        # How: Call load_html() which handles both URLs and local files
         self.load_html()
 
-        # Extract all data categories
-        self.product_data = {
+        # What: Extract all data categories using existing extraction methods
+        # Why: We need to gather all product information before flattening the structure
+        # How: Call each extraction method and organize results into nested categories
+        nested_data = {
             'basic_information': self.extract_basic_info(),
             'pricing_information': self.extract_pricing_info(),
             'product_specifications': self.extract_product_specifications(),
             'size_and_availability': self.extract_size_availability(),
-            'product_images': self.extract_product_images(),
-            'ratings_and_reviews': self.extract_ratings_reviews()
+            'product_images': self.extract_product_images()
         }
 
-        # Filter out unwanted fields
-        self.product_data = self._filter_unwanted_fields(self.product_data)
+        # What: Convert nested structure to flat structure matching desired schema
+        # Why: The output should be a flat JSON structure for easier consumption
+        # How: Call create_flat_structure() to transform nested data into flat format
+        self.product_data = self.create_flat_structure(nested_data)
 
+        # What: Log successful completion of data extraction
+        # Why: We want to track when the scraping process completes successfully
+        # How: Use logger to record successful completion
         logger.info("Product data extraction completed successfully")
         return self.product_data
 
@@ -643,17 +513,29 @@ class ProductScraper:
         """Save extracted data to JSON file"""
         try:
             if not filename:
-                # Generate filename from product handle or source
-                handle = self.product_data.get('basic_information', {}).get(
-                    'product_handle', 'product')
+                # What: Generate a filename from the product URL or source
+                # Why: We need a meaningful filename for the JSON output file
+                # How: Extract a handle from the URL path or use a default name
+                if self.is_url:
+                    # Extract product handle from URL path
+                    url_parts = self.source.rstrip('/').split('/')
+                    handle = url_parts[-1] if url_parts else 'product'
+                else:
+                    handle = 'product'
                 filename = f"{handle}_product_data.json"
 
+            # What: Determine where to save the JSON file
+            # Why: URLs save to current directory, files save to same directory as source
+            # How: Use Path to create appropriate file paths
             if self.is_url:
                 output_path = Path.cwd() / filename
             else:
                 source_path = Path(self.source)
                 output_path = source_path.parent / filename
 
+            # What: Write the product data to a JSON file
+            # Why: We need to save the scraped data for later use
+            # How: Use json.dump() with proper formatting and encoding
             with open(output_path, 'w', encoding='utf-8') as file:
                 json.dump(self.product_data, file,
                           indent=2, ensure_ascii=False)
@@ -667,49 +549,66 @@ class ProductScraper:
 
     def print_summary(self):
         """Print a summary of extracted data"""
+        # What: Display a formatted summary of all extracted product data
+        # Why: Users need a quick overview of what data was successfully scraped
+        # How: Print organized sections showing key product information
         print("\n" + "="*60)
         print("📊 PRODUCT DATA EXTRACTION SUMMARY")
         print("="*60)
 
-        basic = self.product_data.get('basic_information', {})
-        pricing = self.product_data.get('pricing_information', {})
-        specs = self.product_data.get('product_specifications', {})
-        sizes = self.product_data.get('size_and_availability', {})
-        images = self.product_data.get('product_images', {})
-        ratings = self.product_data.get('ratings_and_reviews', {})
-
+        # What: Display basic product information
+        # Why: Users need to see the product name, URL, and page title
+        # How: Extract fields directly from the flat structure
         print(f"🔹 Product Information:")
-        print(f"   • Name: {basic.get('main_title', 'N/A')}")
-        print(f"   • Brand: {basic.get('brand', 'N/A')}")
-        print(f"   • Type: {basic.get('product_type', 'N/A')}")
-        print(f"   • ID: {basic.get('product_id', 'N/A')}")
+        print(f"   • Page Title: {self.product_data.get('page_title', 'N/A')}")
+        print(
+            f"   • Product Name: {self.product_data.get('main_title', 'N/A')}")
+        print(f"   • URL: {self.product_data.get('url', 'N/A')}")
 
+        # What: Display pricing information
+        # Why: Users need to see original price, sale price, and savings
+        # How: Extract pricing fields directly from the flat structure
         print(f"🔹 Pricing:")
-        print(f"   • Original: ₹{pricing.get('original_price', 'N/A')}")
-        print(f"   • Sale: ₹{pricing.get('sale_price', 'N/A')}")
-        print(f"   • Discount: {pricing.get('discount_percentage', 'N/A')}")
-        print(f"   • Savings: ₹{pricing.get('savings_amount', 'N/A')}")
+        print(
+            f"   • Original: ₹{self.product_data.get('original_price', 'N/A')}")
+        print(f"   • Sale: ₹{self.product_data.get('sale_price', 'N/A')}")
+        print(
+            f"   • Discount: {self.product_data.get('discount_percentage', 'N/A')}")
+        print(
+            f"   • Savings: ₹{self.product_data.get('savings_amount', 'N/A')}")
 
+        # What: Display product specifications
+        # Why: Users need to see fabric, fit, collar, sleeve, pattern, and occasion details
+        # How: Extract specification fields directly from the flat structure
         print(f"🔹 Specifications:")
-        for key, value in specs.items():
-            if value and key not in ['available_colors']:
-                print(f"   • {key.title()}: {value}")
+        spec_fields = ['fabric', 'fit', 'closure',
+                       'collar', 'sleeve', 'pattern', 'occasion']
+        for field in spec_fields:
+            value = self.product_data.get(field, '')
+            if value:
+                print(f"   • {field.title()}: {value}")
 
+        # What: Display size availability information
+        # Why: Users need to see which sizes are in stock vs out of stock
+        # How: Check each size field in the flat structure for true/false availability
         print(f"🔹 Size & Availability:")
-        size_availability = sizes.get('size_availability', {})
-        in_stock = [size for size,
-                    available in size_availability.items() if available]
-        out_of_stock = [size for size,
-                        available in size_availability.items() if not available]
+        size_fields = ['XS-36', 'S-38', 'M-40',
+                       'L-42', 'XL-44', 'XXL-46', '3XL-48']
+        in_stock = [
+            size for size in size_fields if self.product_data.get(size, False)]
+        out_of_stock = [
+            size for size in size_fields if size in self.product_data and not self.product_data.get(size, False)]
         print(f"   • In Stock: {', '.join(in_stock) if in_stock else 'N/A'}")
         print(
             f"   • Out of Stock: {', '.join(out_of_stock) if out_of_stock else 'N/A'}")
 
-        print(f"🔹 Images: {len(images.get('product_images', []))} found")
-
-        print(f"🔹 Ratings:")
-        print(f"   • Average: {ratings.get('average_rating', 'N/A')}/5.0")
-        print(f"   • Reviews: {ratings.get('total_reviews', 'N/A')}")
+        # What: Display image information
+        # Why: Users need to know how many product images were found
+        # How: Count the length of the product_images array
+        product_images = self.product_data.get('product_images', [])
+        print(f"🔹 Images: {len(product_images)} found")
+        if self.product_data.get('main_image'):
+            print(f"   • Main Image: {self.product_data.get('main_image')}")
 
         print("="*60)
 
@@ -722,7 +621,7 @@ def main():
     test_url = "https://thehouseofrare.com/products/breath-rust"
 
     try:
-        print("🚀 Testing URL scraping automation...")
+        print("🚀 Testing URL scraping automation with flat JSON structure...")
         scraper = ProductScraper(test_url)
         product_data = scraper.scrape_all_data()
         output_file = scraper.save_to_json()
@@ -731,20 +630,6 @@ def main():
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
-
-        # Fallback to HTML file if available
-        html_file = r"c:\Users\Gourish\OneDrive - REVA University\Desktop\Sraped data\view-source_https___thehouseofrare.com_products_breath-rust.html"
-        if Path(html_file).exists():
-            print(f"\n🔄 Falling back to HTML file: {html_file}")
-            try:
-                scraper = ProductScraper(html_file)
-                product_data = scraper.scrape_all_data()
-                output_file = scraper.save_to_json()
-                scraper.print_summary()
-                print(
-                    f"\n✅ Success with HTML file! Data saved to: {output_file}")
-            except Exception as e2:
-                print(f"\n❌ HTML file error: {e2}")
 
 
 def scrape_product_url(url):
@@ -755,7 +640,7 @@ def scrape_product_url(url):
         url (str): Product URL from thehouseofrare.com
 
     Returns:
-        dict: Extracted product data
+        dict: Extracted product data in flat structure
     """
     try:
         scraper = ProductScraper(url)

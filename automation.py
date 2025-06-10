@@ -8,11 +8,11 @@
 # How: Import the scrape_product_url function and pass it a product URL
 
 """
-# Importing the individual product scraping function
-# What: This brings in the function that can scrape one product at a time
-# Why: We need this function to extract data from individual product pages
-# How: We import scrape_product_url from our product_scraper_automated file
-from product_scraper_automated import scrape_product_url
+# Importing the individual product scraping function (flat structure version)
+# What: This brings in the function that can scrape one product at a time with flat JSON output
+# Why: We need this function to extract data from individual product pages in the new flat format
+# How: We import scrape_product_url from our flat structure product_scraper_automated file
+from product_scraper_automated_flat import scrape_product_url
 
 # Scrape a single product by providing its URL
 # What: This calls the scraping function with a specific product URL
@@ -43,7 +43,7 @@ from bulk_scraper import fast_bulk_scrape
 # Why: We want to collect data from multiple products efficiently
 # How: We call fast_bulk_scrape() with the sitemap URL and set a limit of 10 products
 report = fast_bulk_scrape(
-    "https://thehouseofrare.com/sitemap_products_2.xml?from=6811712421959&to=7085629210695",
+    "https://thehouseofrare.com/sitemap_products_2.xml?from=6811711995975&to=7085628620871",
     max_products=10
 )
 
