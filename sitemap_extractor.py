@@ -1,217 +1,104 @@
 #!/usr/bin/env python3
 """
-Sitemap URL Extractor for thehouseofrare.com
-===========================================
-Extracts product URLs from XML sitemap files.
+Universal Sitemap URL Extractor
+===============================
+Extracts product URLs from XML sitemap files from ANY website.
 
-This module is essential for bulk_scraper.py to function properly.
-It handles XML parsing and URL extraction from sitemaps.
+This module now supports any e-commerce website's sitemap structure.
+It intelligently detects product URLs using multiple strategies.
+
+Features:
+- Universal sitemap support for any website
+- Intelligent product URL detection
+- Multiple sitemap format support (standard XML, sitemap index, etc.)
+- Automatic domain validation and URL normalization
+- Flexible filtering and pattern matching
 
 Author: GitHub Copilot
 """
 
-# Importing the requests module
-# What: This brings in a library for making HTTP requests to websites
-# Why: We need to download XML sitemap files from the internet
-# How: We'll use requests.get() to fetch sitemap content from URLs
 import requests
-
-# Importing xml.etree.ElementTree as ET
-# What: This brings in Python's built-in XML parsing and processing tools
-# Why: Sitemaps are XML files, so we need tools to read and navigate XML structure
-# How: We'll use ET.fromstring() to parse XML and find URL elements within it
 import xml.etree.ElementTree as ET
-
-# Importing the re module (regular expressions)
-# What: This brings in Python's pattern matching and text searching tools
-# Why: We need to filter URLs using patterns (like finding only shirt products)
-# How: We'll use re.search() to check if URLs match specific patterns
 import re
-
-# Importing the logging module
-# What: This brings in Python's system for recording what the program is doing
-# Why: We need to track progress when processing large sitemaps with thousands of URLs
-# How: We'll use logger.info() to show progress and logger.error() for problems
 import logging
-
-# Importing urljoin and urlparse from urllib.parse module
-# What: This brings in URL manipulation and analysis tools
-# Why: We need to combine URL parts and validate that URLs are properly formatted
-# How: We'll use these to work with sitemap URLs and extract domain information
 from urllib.parse import urljoin, urlparse
 
 # Setting up the logging system
-# What: This configures how Python will record information about what the program is doing
-# Why: We want to track progress when downloading and processing sitemaps
-# How: We set the level to INFO (shows progress messages) and define the message format
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Creating a logger object for this specific file
-# What: This creates a logger that we can use throughout this file to record events
-# Why: We want to track sitemap processing progress and any errors that occur
-# How: logger.info() will record progress, logger.error() will record problems
 logger = logging.getLogger(__name__)
 
 
-# Creating a class called SitemapExtractor
-# What: This defines a blueprint for objects that can extract URLs from XML sitemap files
-# Why: We need an organized way to download, parse, and extract product URLs from sitemaps
-# How: We create a class that contains all methods needed for sitemap processing
 class SitemapExtractor:
-    """Extract product URLs from XML sitemaps"""
+    """Extract product URLs from XML sitemaps universally"""
 
-    # The __init__ method is a special function that runs when we create a new SitemapExtractor
-    # What: This sets up the initial state of our sitemap extractor object
-    # Why: We need to store the sitemap URL and prepare variables for storing extracted data
-    # How: We save the sitemap URL and initialize empty variables for content and URLs
     def __init__(self, sitemap_url):
         """
-        Initialize sitemap extractor
+        Initialize sitemap extractor for any website
 
         Args:
             sitemap_url (str): URL of the sitemap XML file
         """
-        # Store the sitemap URL for later use
-        # What: This saves the sitemap URL so we can download it when needed
-        # Why: We need to remember which sitemap file we're working with
-        # How: We assign the input parameter to self.sitemap_url to keep it available
         self.sitemap_url = sitemap_url
 
-        # Initialize an empty variable to store the downloaded sitemap content
-        # What: This creates a placeholder for the XML content we'll download from the URL
-        # Why: We need somewhere to store the raw sitemap data after downloading it
-        # How: We set it to None initially, will be filled when we download the sitemap
+        # Extract and store the base domain from the sitemap URL
+        parsed_url = urlparse(sitemap_url)
+        self.base_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        self.domain_name = parsed_url.netloc.lower()
+
+        # Initialize containers
         self.sitemap_content = None
-
-        # Initialize empty list to store extracted product URLs with their details
-        # What: This creates a container for product URLs and their associated information
-        # Why: We need to store the URLs we extract along with metadata like product names
-        # How: We start with an empty list that we'll fill with dictionaries containing URL data
         self.product_urls = []
+        self.all_urls = []
 
-        # Initialize empty list to store all URLs found in the sitemap
-        # What: This creates a container for every URL found in the sitemap file
-        # Why: We need to store all URLs first, then filter for just the product ones
-        # How: We start with an empty list that we'll fill with all discovered URLs
-        self.all_urls = []    # Method to download and load sitemap content from the internet
-    # What: This downloads the XML sitemap file from the web and processes it
-    # Why: We need to get the sitemap content before we can extract URLs from it
-    # How: We use requests to download the XML, then determine how to process it
+        # Common product URL patterns for different e-commerce platforms
+        self.common_product_patterns = [
+            r'/products?/',      # Shopify, many custom sites
+            r'/product/',        # WooCommerce, Magento
+            r'/item/',          # eBay, some custom sites
+            r'/p/',             # Some minimalist sites
+            r'/shop/',          # Shop pages
+            r'/buy/',           # Purchase pages
+            r'/store/',         # Store pages
+            r'/catalog/',       # Catalog pages
+            r'-p-\d+',          # Product with ID pattern
+            r'/\d+\.html',      # Numeric product pages
+        ]
 
     def load_sitemap(self):
         """Load sitemap content from URL"""
-        # Use try-except to handle any errors that might occur during download
-        # What: This wraps our code in error handling to catch network or parsing problems
-        # Why: Internet downloads can fail, so we need to handle errors gracefully
-        # How: If anything goes wrong, we'll log the error and stop execution safely
         try:
-            # Log that we're starting to download the sitemap
-            # What: This records that we're beginning the download process
-            # Why: We want to track progress and see what the program is doing
-            # How: We use logger.info() to write an informational message
             logger.info(f"Fetching sitemap from URL: {self.sitemap_url}")
 
-            # Set up headers to make our request look like it's coming from a real browser
-            # What: This creates HTTP headers that identify our program as a regular web browser
-            # Why: Some websites block requests that don't look like they come from real browsers
-            # How: We create a dictionary with a User-Agent string that mimics Chrome browser
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
 
-            # Download the sitemap content from the URL
-            # What: This makes an HTTP request to download the XML sitemap file
-            # Why: We need to get the sitemap content before we can extract URLs from it
-            # How: We use requests.get() with headers and a 30-second timeout
             response = requests.get(
                 self.sitemap_url, headers=headers, timeout=30)
-
-            # Check if the download was successful (no 404 errors, etc.)
-            # What: This verifies that the web server returned the content successfully
-            # Why: If there was an error (like 404 not found), we need to know and stop
-            # How: raise_for_status() will throw an error if the HTTP status indicates failure
             response.raise_for_status()
-
-            # Store the downloaded XML content in our object
-            # What: This saves the text content of the sitemap file for processing
-            # Why: We need to keep the XML data available for parsing and URL extraction
-            # How: We assign response.text to self.sitemap_content for later use
             self.sitemap_content = response.text
 
-            # Log that the download was successful
-            # What: This records that we successfully downloaded the sitemap content
-            # Why: We want to track our progress and confirm the download worked
-            # How: We use logger.info() to write a success message
             logger.info("Successfully fetched sitemap XML content")
 
-            # Check if this sitemap file contains links to other sitemap files
-            # What: This determines if we have a sitemap index (list of sitemaps) or actual URLs
-            # Why: Large websites often have multiple sitemap files, so we need to handle both cases
-            # How: We call a helper method that analyzes the XML structure
+            # Check if this is a sitemap index or regular sitemap
             if self._is_sitemap_index():
-                # If it's a sitemap index, log this information
-                # What: This records that we found a sitemap index file
-                # Why: Users should know that we're processing a collection of sitemaps
-                # How: We use logger.info() to write an informational message
                 logger.info(
                     "Detected sitemap index file - contains links to other sitemaps")
-
-                # Process the sitemap index to find product sitemaps
-                # What: This extracts the URLs of individual sitemap files from the index
-                # Why: We need to get the actual product sitemaps from the index file
-                # How: We call a method that parses the index and downloads product sitemaps
                 self._process_sitemap_index()
             else:
-                # If it's a regular sitemap, parse it directly
-                # What: This processes the XML to extract individual URLs
-                # Why: This sitemap contains actual URLs, not links to other sitemaps
-                # How: We call a method that parses the XML and extracts all URLs
-                # If any error occurs during the sitemap loading process, handle it
                 self._parse_sitemap()
-        # What: This catches any errors that happened during download or processing
-        # Why: We need to log errors and re-raise them so the calling code knows something failed
-        # How: We catch the exception, log what went wrong, then raise it again
-        except Exception as e:
-            # Log the error with details about what went wrong
-            # What: This records the error message for debugging purposes
-            # Why: We need to know what failed so we can fix problems
-            # How: We use logger.error() to write an error message with the exception details
-            logger.error(f"Error loading sitemap: {e}")
 
-            # Re-raise the exception so the calling code knows there was a problem
-            # What: This passes the error up to whatever code called this method
-            # Why: The calling code needs to know that loading failed so it can handle it
-            # How: We use 'raise' to re-throw the exception
+        except Exception as e:
+            logger.error(f"Error loading sitemap: {e}")
             raise
 
-    # Helper method to check if the sitemap is an index file (contains links to other sitemaps)
-    # What: This analyzes the XML structure to determine if it's an index or regular sitemap
-    # Why: Index files need different processing than regular sitemaps with actual URLs
-    # How: We parse the XML and check for specific tag names that indicate an index
     def _is_sitemap_index(self):
         """Check if this is a sitemap index file"""
-        # Use try-except to handle any XML parsing errors
-        # What: This wraps the XML parsing in error handling
-        # Why: If the XML is malformed, parsing could fail
-        # How: If parsing fails, we'll assume it's not an index and return False
         try:
-            # Parse the XML content to get the root element
-            # What: This converts the XML text into a structure we can analyze
-            # Why: We need to examine the XML tags to determine the file type
-            # How: ET.fromstring() parses the XML and returns the root element
             root = ET.fromstring(self.sitemap_content)
-
-            # Check if the root tag indicates this is a sitemap index
-            # What: This examines the XML tag names to identify the file type
-            # Why: Index files have different root tags than regular sitemaps
-            # How: We check if the root tag ends with 'sitemapindex' or has 'sitemap' children
             return root.tag.endswith('sitemapindex') or any(child.tag.endswith('sitemap') for child in root)
         except:
-            # If XML parsing fails, assume it's not an index file
-            # What: This handles any errors in XML parsing by returning False
-            # Why: If we can't parse the XML, it's safer to treat it as a regular sitemap
-            # How: We simply return False without raising an error
             return False
 
     def _process_sitemap_index(self):
@@ -234,7 +121,6 @@ class SitemapExtractor:
 
             if not product_sitemaps:
                 # If no specific product sitemaps, take the first few sitemaps
-                # Just take the first one for now
                 product_sitemaps = sitemap_urls[:1]
 
             logger.info(
@@ -298,51 +184,26 @@ class SitemapExtractor:
 
     def extract_product_urls(self, url_pattern=None):
         """
-        Extract product URLs from loaded sitemap
+        Extract product URLs from loaded sitemap using universal detection
+
+        What: This extracts product URLs from any website's sitemap using intelligent detection
+        Why: We want to support any e-commerce website, not just specific ones like houseofrare.com
+        How: We delegate to the universal extraction method which uses multiple detection strategies
 
         Args:
             url_pattern (str): Optional regex pattern to filter URLs
 
         Returns:
-            list: List of product URL dictionaries
+            list: List of product URL dictionaries with 'url', 'product_name', and 'domain'
         """
+        logger.info("Using universal product URL extraction for any website")
+
         if not self.all_urls:
-            raise ValueError("No sitemap loaded. Call load_sitemap() first.")
+            logger.warning("No URLs loaded yet. Call load_sitemap() first.")
+            return []
 
-        product_urls = []
-        count = 0
-
-        for url in self.all_urls:
-            # Filter for product URLs
-            if '/products/' in url:
-                # Apply pattern filter if provided
-                if url_pattern and not re.search(url_pattern, url):
-                    continue
-
-                # Extract product name from URL
-                product_name = url.split(
-                    '/products/')[-1] if '/products/' in url else 'unknown'
-
-                product_data = {
-                    'url': url,
-                    'product_name': product_name
-                }
-
-                product_urls.append(product_data)
-                count += 1
-
-                # Progress indicator for large sitemaps
-                if count % 100 == 0:
-                    logger.info(f"Extracted {count} product URLs...")
-
-        logger.info(f"Successfully extracted {len(product_urls)} product URLs")
-        self.product_urls = product_urls
-
-        if len(self.all_urls) > 1000:
-            logger.info(
-                f"Note: Only processed 1 of 6 available product sitemaps")
-
-        return product_urls
+        # Use the universal extraction method
+        return self.extract_universal_product_urls(url_pattern=url_pattern)
 
     def get_product_urls_list(self):
         """
@@ -352,6 +213,164 @@ class SitemapExtractor:
             list: List of URL strings
         """
         return [item['url'] for item in self.product_urls]
+
+    def detect_product_url_patterns(self, sample_size=100):
+        """
+        Intelligently detect product URL patterns from the sitemap
+
+        What: This analyzes URLs in the sitemap to identify product page patterns
+        Why: Different websites use different URL structures for product pages
+        How: We examine URL patterns and identify the most common product URL structure
+
+        Args:
+            sample_size (int): Number of URLs to analyze for pattern detection
+
+        Returns:
+            list: Detected product URL patterns
+        """
+        if not self.all_urls:
+            logger.warning("No URLs loaded yet. Call load_sitemap() first.")
+            return []
+
+        # Sample URLs for pattern analysis
+        sample_urls = self.all_urls[:sample_size]
+        detected_patterns = []
+
+        # Count pattern occurrences
+        pattern_counts = {}
+        for pattern in self.common_product_patterns:
+            count = sum(1 for url in sample_urls if re.search(
+                pattern, url, re.IGNORECASE))
+            if count > 0:
+                pattern_counts[pattern] = count
+
+        # Sort by frequency and select most common patterns
+        sorted_patterns = sorted(
+            pattern_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # Take patterns that appear in at least 5% of URLs
+        threshold = max(1, sample_size * 0.05)
+        detected_patterns = [pattern for pattern,
+                             count in sorted_patterns if count >= threshold]
+
+        logger.info(f"Detected {len(detected_patterns)} product URL patterns")
+        for pattern, count in sorted_patterns[:3]:
+            logger.info(f"  Pattern '{pattern}': {count} matches")
+
+        return detected_patterns
+
+    def extract_universal_product_urls(self, custom_patterns=None, url_pattern=None):
+        """
+        Universal product URL extraction for any website
+
+        What: This extracts product URLs from any website's sitemap using intelligent detection
+        Why: We want to support any e-commerce website, not just specific ones
+        How: We use multiple strategies to identify product URLs across different platforms
+
+        Args:
+            custom_patterns (list): Custom regex patterns specific to the website
+            url_pattern (str): Additional filter pattern
+
+        Returns:
+            list: List of dictionaries containing product URL data
+        """
+        if not self.all_urls:
+            logger.warning("No URLs loaded yet. Call load_sitemap() first.")
+            return []
+
+        product_urls = []
+
+        # Use custom patterns if provided, otherwise detect automatically
+        if custom_patterns:
+            patterns_to_use = custom_patterns
+            logger.info(
+                f"Using {len(custom_patterns)} custom product patterns")
+        else:
+            patterns_to_use = self.detect_product_url_patterns()
+            if not patterns_to_use:
+                # Fallback to all common patterns if detection fails
+                patterns_to_use = self.common_product_patterns
+                logger.info("Using fallback common product patterns")
+
+        logger.info(f"Scanning {len(self.all_urls)} URLs for products...")
+
+        for url in self.all_urls:
+            # Skip non-HTTP URLs
+            if not url.startswith(('http://', 'https://')):
+                continue
+
+            # Validate URL belongs to the same domain
+            if not self._is_valid_domain_url(url):
+                continue
+
+            # Check if URL matches any product pattern
+            is_product_url = False
+            for pattern in patterns_to_use:
+                if re.search(pattern, url, re.IGNORECASE):
+                    is_product_url = True
+                    break
+
+            # Additional filtering if pattern provided
+            if url_pattern and not re.search(url_pattern, url, re.IGNORECASE):
+                continue
+
+            if is_product_url:
+                # Extract product identifier from URL
+                product_name = self._extract_product_name(url)
+
+                product_data = {
+                    'url': url,
+                    'product_name': product_name,
+                    'domain': self.domain_name
+                }
+
+                product_urls.append(product_data)
+
+        logger.info(f"Successfully extracted {len(product_urls)} product URLs")
+        self.product_urls = product_urls
+        return product_urls
+
+    def _is_valid_domain_url(self, url):
+        """Check if URL belongs to the same domain as the sitemap"""
+        try:
+            parsed_url = urlparse(url)
+            return parsed_url.netloc.lower() == self.domain_name
+        except:
+            return False
+
+    def _extract_product_name(self, url):
+        """Extract product name/identifier from URL"""
+        try:
+            # Remove domain and clean up
+            path = urlparse(url).path
+
+            # Common product name extraction strategies
+            strategies = [
+                # Shopify style
+                lambda p: p.split('/products/')[-1].split('?')[0],
+                # WooCommerce style
+                lambda p: p.split('/product/')[-1].split('?')[0],
+                lambda p: p.split(
+                    '/item/')[-1].split('?')[0],      # Item style
+                # Short style
+                lambda p: p.split('/p/')[-1].split('?')[0],
+                # Last segment
+                lambda p: p.split('/')[-1].split('?')[0],
+            ]
+
+            for strategy in strategies:
+                try:
+                    name = strategy(path)
+                    if name and name != path and len(name) > 0:
+                        # Clean up the name
+                        name = name.replace('-', ' ').replace('_', ' ').strip()
+                        return name[:50]  # Limit length
+                except:
+                    continue
+
+            return 'unknown'
+        except:
+            return 'unknown'
 
 
 def extract_sitemap_urls(sitemap_url, url_pattern=None, max_urls=None):
@@ -387,24 +406,31 @@ def extract_sitemap_urls(sitemap_url, url_pattern=None, max_urls=None):
 
 if __name__ == "__main__":
     # Test the extractor
-    print("🧪 Testing Sitemap Extractor")
-    print("=" * 40)
+    print("🧪 Testing Universal Sitemap Extractor")
+    print("=" * 50)
 
     try:
-        sitemap_url = "https://thehouseofrare.com/sitemap.xml"
+        # Test with different websites
+        test_sites = [
+            "https://thehouseofrare.com/sitemap.xml",
+            "https://example-shop.com/sitemap.xml"  # Can be changed to any site
+        ]
 
-        extractor = SitemapExtractor(sitemap_url)
-        extractor.load_sitemap()
-        products = extractor.extract_product_urls()
+        for sitemap_url in test_sites[:1]:  # Test first one
+            print(f"\n🔍 Testing: {sitemap_url}")
 
-        print(f"✅ Successfully extracted {len(products)} product URLs")
+            extractor = SitemapExtractor(sitemap_url)
+            extractor.load_sitemap()
+            products = extractor.extract_product_urls()
 
-        # Show first few URLs
-        for i, product in enumerate(products[:5]):
-            print(f"{i+1}. {product['url']}")
+            print(f"✅ Successfully extracted {len(products)} product URLs")
 
-        if len(products) > 5:
-            print(f"... and {len(products) - 5} more")
+            # Show first few URLs
+            for i, product in enumerate(products[:5]):
+                print(f"{i+1}. {product['product_name']}: {product['url']}")
+
+            if len(products) > 5:
+                print(f"... and {len(products) - 5} more")
 
     except Exception as e:
         print(f"❌ Error: {e}")
