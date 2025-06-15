@@ -1,95 +1,113 @@
-# Simple E-commerce Product Scraper
+# 🗂️ Simple Scraping System - Usage Guide
 
-A clean, simple, and efficient product scraping system for thehouseofrare.com and other e-commerce websites.
+## ✨ **QUICK START**
 
-## ✨ Features
-
-- **Pattern-Based Scraping** - No AI complexity, just reliable HTML parsing
-- **Universal Sitemap Support** - Extract product URLs from any website's sitemap
-- **Bulk Processing** - Scrape multiple products efficiently
-- **Rate Limiting** - Respectful scraping with delays
-- **JSON Export** - Clean, simple data format
-- **Error Handling** - Robust operation with proper logging
-
-## 🚀 Quick Start
-
-### 1. Install Dependencies
-
-```bash
+### **1. Install Dependencies:**
+```powershell
 pip install -r requirements.txt
 ```
 
-### 2. Run Examples
+### **2. Sitemap Extraction:**
+```python
+from sitemap_extractor import SitemapExtractor
 
-```bash
-python automation_simple_fixed.py
+# Extract product URLs from sitemap
+extractor = SitemapExtractor("https://example.com/sitemap.xml")
+extractor.load_sitemap()
+product_urls = extractor.extract_product_urls()
+
+print(f"Found {len(product_urls)} product URLs:")
+for url_data in product_urls:
+    print(url_data['url'])
 ```
 
-## 📁 Files
-
-- **`product_scraper_simple.py`** - Main scraper class
-- **`sitemap_extractor.py`** - Universal sitemap URL extraction
-- **`bulk_scraper.py`** - Fast bulk scraping functionality
-- **`automation_simple_fixed.py`** - Usage examples and demonstrations
-- **`requirements.txt`** - Python dependencies
-
-## 💡 Usage Examples
-
-### Single Product
-
+### **3. Individual Product Scraping:**
 ```python
 from product_scraper_simple import scrape_product_url
 
-data = scrape_product_url("https://thehouseofrare.com/products/paintt-green")
-print(f"Product: {data['product_name']}")
-print(f"Price: ₹{data['current_price']}")
+# Scrape individual product
+data = scrape_product_url("https://example.com/products/item", save_json=True)
+print(f"Product: {data.get('product_name')}")
+print(f"Price: {data.get('current_price')}")
 ```
 
-### Bulk Scraping
-
+### **4. Bulk Scraping:**
 ```python
-from product_scraper_simple import scrape_multiple_urls
+from bulk_scraper import BulkScraper
 
-urls = ["url1", "url2", "url3"]
-results = scrape_multiple_urls(urls, delay=1.0, save_combined=True)
+# Bulk scrape multiple products
+scraper = BulkScraper("https://example.com/sitemap.xml")
+results = scraper.scrape_products(max_products=100)
+print(f"Scraped {len(results)} products")
 ```
 
-### Sitemap Extraction
+## 🎯 **EXAMPLE OUTPUTS**
 
+### **Input:** `https://thehouseofrare.com/sitemap.xml`
+**Output:** `product_urls_thehouseofrare_com.csv`
+```csv
+https://thehouseofrare.com/products/item-1
+https://thehouseofrare.com/products/item-2
+https://thehouseofrare.com/products/item-3
+```
+
+## 🔧 **KEY FEATURES**
+
+### **🔍 Smart Detection:**
+- Automatically detects product URL patterns
+- Supports multiple sitemap formats
+- Handles sitemap index files
+
+### **� Clean Output:**
+- CSV format for easy processing
+- Duplicate removal
+- Domain validation
+
+### **�️ Robust Processing:**
+- Error handling for malformed XML
+- Network timeout handling
+- Automatic retry on failures
+
+## 🚀 **ADVANCED USAGE**
+
+### **Custom Filtering:**
 ```python
 from sitemap_extractor import SitemapExtractor
 
 extractor = SitemapExtractor("https://example.com/sitemap.xml")
-extractor.load_sitemap()
-products = extractor.extract_product_urls()
+
+# Extract with custom filters
+product_urls = extractor.extract_product_urls(
+    min_urls=10,          # Minimum URLs to extract
+    max_urls=1000,        # Maximum URLs to extract
+    pattern_filters=['product', 'item', 'shop']  # Custom patterns
+)
 ```
 
-## 📊 Output Format
+### **Bulk Processing:**
+```python
+from sitemap_extractor import SitemapExtractor
 
-Simple JSON structure with all product data at the root level:
+sitemaps = [
+    "https://site1.com/sitemap.xml",
+    "https://site2.com/sitemap.xml",
+    "https://site3.com/sitemap.xml"
+]
 
-```json
-{
-  "product_name": "WATERCOLOUR EFFECT FLORAL PRINT SHIRT",
-  "current_price": 1679,
-  "original_price": 2799,
-  "discount_percentage": "40% OFF",
-  "fabric": "Cotton",
-  "fit": "Regular",
-  "XS_available": false,
-  "S_available": true,
-  "M_available": true,
-  "product_images": ["image1.jpg", "image2.jpg"]
-}
+for sitemap_url in sitemaps:
+    extractor = SitemapExtractor(sitemap_url)
+    csv_file = extractor.extract_to_csv()
+    print(f"Processed: {csv_file}")
 ```
 
-## 🔧 Requirements
+## 📊 **SUCCESS METRICS**
 
-- Python 3.7+
-- requests
-- beautifulsoup4
-- lxml
+- ✅ **Fast Processing**: Results in seconds
+- ✅ **High Accuracy**: Pattern-based URL detection
+- ✅ **Universal Support**: Works with any sitemap format
+- ✅ **Clean Output**: Ready-to-use CSV files
+- ✅ **Error Handling**: Robust and reliable
 
-## 📄 License
+---
 
-This project is for educational purposes only. Please respect website terms of service and implement appropriate rate limiting.
+**🎉 Your simple sitemap extractor is ready to use!**
